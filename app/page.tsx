@@ -1,12 +1,115 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+
 type Movie = {id:string;title:string;release_year:number|null;poster_url:string|null;synopsis:string|null;genre:string|null;rating:number|null;featured:boolean;views_count:number;};
-function Card({m}:{m:Movie}) { return <Link className="movie" href={`/movies/${m.id}`}>{m.poster_url?<img className="poster" src={m.poster_url} alt={`بوستر ${m.title}`}/>:<div className="placeholder">سينماك</div>}<div className="movie-info"><h3>{m.title}</h3><div className="meta">{m.release_year||"—"}{m.genre?` • ${m.genre}`:""}</div>{m.rating!==null&&<span className="tag">★ {m.rating}/10</span>}</div></Link>; }
+
+function Card({m}:{m:Movie}) { 
+  return (
+    <Link className="movie" href={`/movies/${m.id}`}>
+      {m.poster_url ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img className="poster" src={m.poster_url} alt={`بوستر ${m.title}`}/>
+      ) : (
+        <div className="placeholder">سينماك</div>
+      )}
+      <div className="movie-info">
+        <h3>{m.title}</h3>
+        <div className="meta">
+          {m.release_year||"—"}
+          {m.genre?` • ${m.genre}`:""}
+        </div>
+        {m.rating!==null&&<span className="tag">★ {m.rating}/10</span>}
+      </div>
+    </Link>
+  ); 
+}
+
 export default async function Home({searchParams}:{searchParams:Promise<{q?:string}>}) {
- const {q=""}=await searchParams; let movies:Movie[]=[]; let error="";
- try {const sb=await createClient();let query=sb.from("movies").select("id,title,release_year,poster_url,synopsis,genre,rating,featured,views_count").eq("published",true).order("created_at",{ascending:false});if(q.trim())query=query.ilike("title",`%${q.trim().replace(/[%_]/g,"")}%`);const r=await query;if(r.error)error="اربط قاعدة بيانات Supabase وشغّل ملف schema.sql.";else movies=(r.data||[]) as Movie[];} catch {error="قاعدة البيانات غير مربوطة بعد. راجع ملف README.";}
- const featured=movies.find(m=>m.featured)||movies[0];const popular=[...movies].sort((a,b)=>(b.views_count||0)-(a.views_count||0));
- return <><header className="topbar"><div className="container nav"><Link href="/" className="brand">سينماك</Link><nav className="navlinks"><Link href="/">الرئيسية</Link><a href="#latest">أحدث الإضافات</a><a href="#popular">الأكثر مشاهدة</a><Link href="/profile">حسابي</Link><Link href="/login">دخول</Link></nav></div></header><main className="container"><section className="hero"><div className="hero-banner"><div className="hero-content"><div className="eyebrow">سينماك ORIGINALS • محتوى مرخّص</div><h1>{featured?.title||"عالم من القصص يستناك"}</h1><p>{featured?.synopsis||"اكتشف أعمالًا جديدة وتابع مشاهدتك في مكان واحد. أضف محتواك المرخّص من لوحة الإدارة."}</p>{featured&&<div className="watch-row"><Link className="btn" href={`/movies/${featured.id}`}>التفاصيل والمشاهدة</Link><span className="tag">{featured.genre||"مختارات سينمائية"}</span></div>}</div></div><form className="search" action="/" method="get"><input name="q" defaultValue={q} placeholder="ابحث عن فيلم..." aria-label="ابحث عن فيلم"/><button>بحث</button></form></section>
- {error&&<div className="notice">{error}</div>}<section id="latest"><div className="section-title"><h2>أحدث الإضافات</h2><span className="small">{movies.length} عنوان</span></div>{movies.length?<div className="grid">{movies.map(m=><Card key={m.id} m={m}/>)}</div>:<div className="empty">مفيش محتوى منشور لسه. بعد إعداد Supabase، أضف أول عنوان من لوحة التحكم.</div>}</section>
- <section id="popular"><div className="section-title"><h2>الأكثر مشاهدة</h2></div>{popular.length?<div className="grid">{popular.slice(0,4).map(m=><Card key={m.id} m={m}/>)}</div>:<div className="empty">هتظهر هنا العناوين الأكثر مشاهدة بعد إضافة المحتوى وتسجيل المشاهدات.</div>}</section></main><footer className="footer"><div className="container">سينماك — منصة للمحتوى الذي تملك حقوق عرضه أو ترخيصه.</div></footer></>;
+ const {q=""}=await searchParams; 
+ let movies:Movie[]=[]; 
+ let error="";
+ 
+ try {
+   const sb=await createClient();
+   let query=sb.from("movies").select("id,title,release_year,poster_url,synopsis,genre,rating,featured,views_count").eq("published",true).order("created_at",{ascending:false});
+   if(q.trim())query=query.ilike("title",`%${q.trim().replace(/[%_]/g,"")}%`);
+   const r=await query;
+   if(r.error) error="اربط قاعدة بيانات Supabase وشغّل ملف schema.sql.";
+   else movies=(r.data||[]) as Movie[];
+ } catch {
+   error="قاعدة البيانات غير مربوطة بعد. راجع ملف README.";
+ }
+ 
+ const featured=movies.find(m=>m.featured)||movies[0];
+ const popular=[...movies].sort((a,b)=>(b.views_count||0)-(a.views_count||0));
+ 
+ return (
+  <>
+    <header className="topbar">
+      <div className="container nav">
+        <Link href="/" className="brand">سينماك</Link>
+        <nav className="navlinks">
+          <Link href="/">الرئيسية</Link>
+          <a href="#latest">أحدث الإضافات</a>
+          <a href="#popular">الأكثر مشاهدة</a>
+          <Link href="/profile">حسابي</Link>
+          <Link href="/login">دخول</Link>
+        </nav>
+      </div>
+    </header>
+    <main className="container">
+      <section className="hero">
+        <div className="hero-banner">
+          <div className="hero-content">
+            <div className="eyebrow">سينماك ORIGINALS • محتوى مرخّص</div>
+            <h1>{featured?.title||"عالم من القصص يستناك"}</h1>
+            <p>{featured?.synopsis||"اكتشف أعمالًا جديدة وتابع مشاهدتك في مكان واحد. أضف محتواك المرخّص من لوحة الإدارة."}</p>
+            {featured&&
+              <div className="watch-row">
+                <Link className="btn" href={`/movies/${featured.id}`}>التفاصيل والمشاهدة</Link>
+                <span className="tag">{featured.genre||"مختارات سينمائية"}</span>
+              </div>
+            }
+          </div>
+        </div>
+        <form className="search" action="/" method="get">
+          <input name="q" defaultValue={q} placeholder="ابحث عن فيلم..." aria-label="ابحث عن فيلم"/>
+          <button>بحث</button>
+        </form>
+      </section>
+      
+      {error&&<div className="notice">{error}</div>}
+      
+      <section id="latest">
+        <div className="section-title">
+          <h2>أحدث الإضافات</h2>
+          <span className="small">{movies.length} عنوان</span>
+        </div>
+        {movies.length ? (
+          <div className="grid">
+            {movies.map(m=><Card key={m.id} m={m}/>)}
+          </div>
+        ) : (
+          <div className="empty">مفيش محتوى منشور لسه. بعد إعداد Supabase، أضف أول عنوان من لوحة التحكم.</div>
+        )}
+      </section>
+      
+      <section id="popular">
+        <div className="section-title">
+          <h2>الأكثر مشاهدة</h2>
+        </div>
+        {popular.length ? (
+          <div className="grid">
+            {popular.slice(0,4).map(m=><Card key={m.id} m={m}/>)}
+          </div>
+        ) : (
+          <div className="empty">هتظهر هنا العناوين الأكثر مشاهدة بعد إضافة المحتوى وتسجيل المشاهدات.</div>
+        )}
+      </section>
+    </main>
+    <footer className="footer">
+      <div className="container">سينماك — منصة للمحتوى الذي تملك حقوق عرضه أو ترخيصه.</div>
+    </footer>
+  </>
+ );
 }
