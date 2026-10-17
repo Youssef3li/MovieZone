@@ -1,10 +1,93 @@
 "use client";
-import Link from "next/link";import {useEffect,useState} from "react";import {useRouter} from "next/navigation";import {createClient} from "@/lib/supabase/client";
+import Link from "next/link";
+import {useEffect,useState} from "react";
+import {useRouter} from "next/navigation";
+import {createClient} from "@/lib/supabase/client";
+
 type Item={movie_id:string;movies:{id:string;title:string;poster_url:string|null;release_year:number|null}|null};
-export default function Profile(){const[user,setUser]=useState<any>(null);const[items,setItems]=useState<Item[]>([]);const[msg,setMsg]=useState("جارٍ تحميل الحساب...");const router=useRouter();
- async function load(){const sb=createClient();const{data:{user:u}}=await sb.auth.getUser();if(!u){router.replace("/login?next=/profile");return;}setUser(u);const{data,error}=await sb.from("watchlist").select("movie_id,movies(id,title,poster_url,release_year)").eq("user_id",u.id).order("created_at",{ascending:false});if(error)setMsg("تعذر تحميل قائمة المشاهدة: "+error.message);else{setItems((data||[]) as unknown as Item[]);setMsg("");}}
- useEffect(()=>{load().catch(()=>setMsg("تعذر الاتصال بـ Supabase."));},[]);
- async function remove(id:string){const sb=createClient();const{error}=await sb.from("watchlist").delete().eq("movie_id",id);if(error)setMsg(error.message);else await load();}
- async function logout(){await createClient().auth.signOut();router.replace("/");router.refresh();}
- return <><header className="topbar"><div className="container nav"><Link className="brand" href="/">سينماك</Link><nav className="navlinks"><Link href="/">الرئيسية</Link><button className="secondary" onClick={logout}>تسجيل الخروج</button></nav></div></header><main className="container page"><h1>حسابي</h1>{user&&<p className="muted">أهلًا، {user.email}</p>}{msg&&<div className="notice">{msg}</div>}<div className="section-title"><h2>قائمة المشاهدة لاحقًا</h2></div>{items.length?<div className="grid">{items.map(it=>it.movies&&<article className="movie" key={it.movie_id}>{it.movies.poster_url?<img className="poster" src={it.movies.poster_url} alt={it.movies.title}/>:<div className="placeholder">سينماك</div>}<div className="movie-info"><h3>{it.movies.title}</h3><p className="meta">{it.movies.release_year||"—"}</p><div className="actions"><Link className="btn" href={`/movies/${it.movie_id}`}>فتح</Link><button className="danger" onClick={()=>remove(it.movie_id)}>إزالة</button></div></div></article>)}</div>:<div className="empty">قائمة المشاهدة فارغة. أضف عناوين من صفحة الفيلم.</div>}</main></>;
+type UserProfile = { id: string; email?: string };
+
+export default function Profile(){
+ const[user,setUser]=useState<UserProfile | null>(null);
+ const[items,setItems]=useState<Item[]>([]);
+ const[msg,setMsg]=useState("جارٍ تحميل الحساب...");
+ const router=useRouter();
+ 
+ async function load(){
+   const sb=createClient();
+   const{data:{user:u}}=await sb.auth.getUser();
+   if(!u){
+     router.replace("/login?next=/profile");
+     return;
+   }
+   setUser({ id: u.id, email: u.email });
+   const{data,error}=await sb.from("watchlist").select("movie_id,movies(id,title,poster_url,release_year)").eq("user_id",u.id).order("created_at",{ascending:false});
+   if(error) setMsg("تعذر تحميل قائمة المشاهدة: "+error.message);
+   else{
+     setItems((data||[]) as unknown as Item[]);
+     setMsg("");
+   }
+ }
+ 
+ useEffect(()=>{
+   load().catch(()=>setMsg("تعذر الاتصال بـ Supabase."));
+   // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[]);
+ 
+ async function remove(id:string){
+   const sb=createClient();
+   const{error}=await sb.from("watchlist").delete().eq("movie_id",id);
+   if(error) setMsg(error.message);
+   else await load();
+ }
+ 
+ async function logout(){
+   await createClient().auth.signOut();
+   router.replace("/");
+   router.refresh();
+ }
+ 
+ return (
+  <>
+    <header className="topbar">
+      <div className="container nav">
+        <Link className="brand" href="/">سينماك</Link>
+        <nav className="navlinks">
+          <Link href="/">الرئيسية</Link>
+          <button className="secondary" onClick={logout}>تسجيل الخروج</button>
+        </nav>
+      </div>
+    </header>
+    <main className="container page">
+      <h1>حسابي</h1>
+      {user&&<p className="muted">أهلًا، {user.email}</p>}
+      {msg&&<div className="notice">{msg}</div>}
+      <div className="section-title"><h2>قائمة المشاهدة لاحقًا</h2></div>
+      {items.length ? (
+        <div className="grid">
+          {items.map(it=>it.movies&&
+            <article className="movie" key={it.movie_id}>
+              {it.movies.poster_url ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img className="poster" src={it.movies.poster_url} alt={it.movies.title}/>
+              ) : (
+                <div className="placeholder">سينماك</div>
+              )}
+              <div className="movie-info">
+                <h3>{it.movies.title}</h3>
+                <p className="meta">{it.movies.release_year||"—"}</p>
+                <div className="actions">
+                  <Link className="btn" href={`/movies/${it.movie_id}`}>فتح</Link>
+                  <button className="danger" onClick={()=>remove(it.movie_id)}>إزالة</button>
+                </div>
+              </div>
+            </article>
+          )}
+        </div>
+      ) : (
+        <div className="empty">قائمة المشاهدة فارغة. أضف عناوين من صفحة الفيلم.</div>
+      )}
+    </main>
+  </>
+ );
 }
