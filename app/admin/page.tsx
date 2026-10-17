@@ -1,17 +1,188 @@
 "use client";
-import Link from "next/link";import {useEffect,useState} from "react";import {useRouter} from "next/navigation";import {createClient} from "@/lib/supabase/client";
+import Link from "next/link";
+import {useEffect,useState} from "react";
+import {useRouter} from "next/navigation";
+import {createClient} from "@/lib/supabase/client";
+
 const blank={title:"",release_year:"",genre:"",poster_url:"",synopsis:"",video_url:"",trailer_url:"",cast_members:"",duration_minutes:"",rating:"",featured:false,published:false};
 type Movie={id:string;title:string;release_year:number|null;published:boolean};
-export default function Admin(){const[movies,setMovies]=useState<Movie[]>([]);const[form,setForm]=useState(blank);const[editId,setEditId]=useState<string|null>(null);const[msg,setMsg]=useState("جارٍ التحميل...");const[busy,setBusy]=useState(false);const router=useRouter();
- async function load(){const sb=createClient();const{data:{user}}=await sb.auth.getUser();if(!user){router.replace("/login?next=/admin");return;}const{data:profile}=await sb.from("profiles").select("role").eq("id",user.id).maybeSingle();if(profile?.role!=="admin"){setMsg("الحساب الحالي ليس حساب مشرف. اطلب من مالك الموقع تعيين role=admin في جدول profiles.");return;}const{data,error}=await sb.from("movies").select("id,title,release_year,published").order("created_at",{ascending:false});if(error)setMsg(error.message);else{setMovies((data||[]) as Movie[]);setMsg("");}}
- useEffect(()=>{load().catch(()=>setMsg("تعذر الاتصال بقاعدة البيانات."));},[]);
+
+export default function Admin(){
+ const[movies,setMovies]=useState<Movie[]>([]);
+ const[form,setForm]=useState(blank);
+ const[editId,setEditId]=useState<string|null>(null);
+ const[msg,setMsg]=useState("جارٍ التحميل...");
+ const[busy,setBusy]=useState(false);
+ const router=useRouter();
+ 
+ async function load(){
+  const sb=createClient();
+  const{data:{user}}=await sb.auth.getUser();
+  if(!user){
+    router.replace("/login?next=/admin");
+    return;
+  }
+  const{data:profile}=await sb.from("profiles").select("role").eq("id",user.id).maybeSingle();
+  if(profile?.role!=="admin"){
+    setMsg("الحساب الحالي ليس حساب مشرف. اطلب من مالك الموقع تعيين role=admin في جدول profiles.");
+    return;
+  }
+  const{data,error}=await sb.from("movies").select("id,title,release_year,published").order("created_at",{ascending:false});
+  if(error) setMsg(error.message);
+  else {
+    setMovies((data||[]) as Movie[]);
+    setMsg("");
+  }
+ }
+ 
+ useEffect(()=>{
+  load().catch(()=>setMsg("تعذر الاتصال بقاعدة البيانات."));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[]);
+ 
  const set=(k:string,v:string|boolean)=>setForm(p=>({...p,[k]:v}));
- async function save(e:React.FormEvent){e.preventDefault();setBusy(true);setMsg("");const sb=createClient();const payload={title:form.title.trim(),release_year:form.release_year?Number(form.release_year):null,genre:form.genre||null,poster_url:form.poster_url||null,synopsis:form.synopsis||null,video_url:form.video_url||null,trailer_url:form.trailer_url||null,cast_members:form.cast_members||null,duration_minutes:form.duration_minutes?Number(form.duration_minutes):null,rating:form.rating?Number(form.rating):null,featured:form.featured,published:form.published};
- const result=editId?await sb.from("movies").update(payload).eq("id",editId):await sb.from("movies").insert(payload);if(result.error)setMsg(result.error.message);else{setMsg("تم حفظ العنوان.");setForm(blank);setEditId(null);await load();}setBusy(false);}
- async function edit(id:string){const{data,error}=await createClient().from("movies").select("*").eq("id",id).single();if(error||!data){setMsg(error?.message||"تعذر فتح العنوان.");return;}setEditId(id);setForm({title:data.title||"",release_year:data.release_year?.toString()||"",genre:data.genre||"",poster_url:data.poster_url||"",synopsis:data.synopsis||"",video_url:data.video_url||"",trailer_url:data.trailer_url||"",cast_members:data.cast_members||"",duration_minutes:data.duration_minutes?.toString()||"",rating:data.rating?.toString()||"",featured:!!data.featured,published:!!data.published});window.scrollTo({top:0,behavior:"smooth"});}
- async function remove(id:string){if(!confirm("تأكيد حذف المحتوى؟"))return;const{error}=await createClient().from("movies").delete().eq("id",id);if(error)setMsg(error.message);else{setMsg("تم الحذف.");await load();}}
- async function logout(){await createClient().auth.signOut();router.replace("/login");}
- return <><header className="topbar"><div className="container nav"><Link className="brand" href="/">سينماك</Link><nav className="navlinks"><Link href="/">عرض الموقع</Link><button className="secondary" onClick={logout}>خروج</button></nav></div></header><main className="container page"><h1>لوحة الإدارة</h1><p className="muted">إدارة المحتوى المرخّص. لا تضف ملفات لا تملك حق عرضها.</p>{msg&&<div className="notice">{msg}</div>}<section className="panel"><h2>{editId?"تعديل المحتوى":"إضافة فيلم أو حلقة"}</h2><form className="form" onSubmit={save}>
- <label>العنوان *<input required value={form.title} onChange={e=>set("title",e.target.value)}/></label><label>سنة الإصدار<input type="number" min="1888" max="2100" value={form.release_year} onChange={e=>set("release_year",e.target.value)}/></label><label>التصنيف<input value={form.genre} onChange={e=>set("genre",e.target.value)}/></label><label>رابط البوستر<input type="url" value={form.poster_url} onChange={e=>set("poster_url",e.target.value)}/></label><label>القصة<textarea rows={4} value={form.synopsis} onChange={e=>set("synopsis",e.target.value)}/></label><label>رابط ملف الفيديو المرخّص<input type="url" value={form.video_url} onChange={e=>set("video_url",e.target.value)} placeholder="رابط MP4 مباشر أو CDN يدعم التشغيل"/></label><label>رابط الإعلان الترويجي<input type="url" value={form.trailer_url} onChange={e=>set("trailer_url",e.target.value)}/></label><label>طاقم العمل<input value={form.cast_members} onChange={e=>set("cast_members",e.target.value)}/></label><label>مدة المحتوى بالدقائق<input type="number" min="1" value={form.duration_minutes} onChange={e=>set("duration_minutes",e.target.value)}/></label><label>التقييم من 10<input type="number" min="0" max="10" step="0.1" value={form.rating} onChange={e=>set("rating",e.target.value)}/></label><label>محتوى مميز<select value={form.featured?"yes":"no"} onChange={e=>set("featured",e.target.value==="yes")}><option value="no">لا</option><option value="yes">نعم</option></select></label><label>حالة النشر<select value={form.published?"yes":"no"} onChange={e=>set("published",e.target.value==="yes")}><option value="no">مسودة</option><option value="yes">منشور</option></select></label><div className="actions"><button disabled={busy}>{busy?"جارٍ الحفظ...":editId?"حفظ التعديل":"إضافة المحتوى"}</button>{editId&&<button type="button" className="secondary" onClick={()=>{setEditId(null);setForm(blank)}}>إلغاء</button>}</div></form></section>
- <section><div className="section-title"><h2>المحتوى ({movies.length})</h2></div>{movies.length?<div className="panel table-wrap"><table><thead><tr><th>العنوان</th><th>السنة</th><th>النشر</th><th>إجراءات</th></tr></thead><tbody>{movies.map(m=><tr key={m.id}><td>{m.title}</td><td>{m.release_year||"—"}</td><td>{m.published?"منشور":"مسودة"}</td><td><div className="actions"><button className="secondary" onClick={()=>edit(m.id)}>تعديل</button><button className="danger" onClick={()=>remove(m.id)}>حذف</button></div></td></tr>)}</tbody></table></div>:<div className="empty">لا يوجد محتوى.</div>}</section></main></>;
+ 
+ async function save(e:React.FormEvent){
+  e.preventDefault();
+  setBusy(true);
+  setMsg("");
+  const sb=createClient();
+  const payload={
+    title:form.title.trim(),
+    release_year:form.release_year?Number(form.release_year):null,
+    genre:form.genre||null,
+    poster_url:form.poster_url||null,
+    synopsis:form.synopsis||null,
+    video_url:form.video_url||null,
+    trailer_url:form.trailer_url||null,
+    cast_members:form.cast_members||null,
+    duration_minutes:form.duration_minutes?Number(form.duration_minutes):null,
+    rating:form.rating?Number(form.rating):null,
+    featured:form.featured,
+    published:form.published
+  };
+ 
+  const result=editId?await sb.from("movies").update(payload).eq("id",editId):await sb.from("movies").insert(payload);
+  if(result.error) setMsg(result.error.message);
+  else{
+    setMsg("تم حفظ العنوان.");
+    setForm(blank);
+    setEditId(null);
+    await load();
+  }
+  setBusy(false);
+ }
+ 
+ async function edit(id:string){
+  const{data,error}=await createClient().from("movies").select("*").eq("id",id).single();
+  if(error||!data){
+    setMsg(error?.message||"تعذر فتح العنوان.");
+    return;
+  }
+  setEditId(id);
+  setForm({
+    title:data.title||"",
+    release_year:data.release_year?.toString()||"",
+    genre:data.genre||"",
+    poster_url:data.poster_url||"",
+    synopsis:data.synopsis||"",
+    video_url:data.video_url||"",
+    trailer_url:data.trailer_url||"",
+    cast_members:data.cast_members||"",
+    duration_minutes:data.duration_minutes?.toString()||"",
+    rating:data.rating?.toString()||"",
+    featured:!!data.featured,
+    published:!!data.published
+  });
+  window.scrollTo({top:0,behavior:"smooth"});
+ }
+ 
+ async function remove(id:string){
+  if(!confirm("تأكيد حذف المحتوى؟"))return;
+  const{error}=await createClient().from("movies").delete().eq("id",id);
+  if(error) setMsg(error.message);
+  else{
+    setMsg("تم الحذف.");
+    await load();
+  }
+ }
+ 
+ async function logout(){
+  await createClient().auth.signOut();
+  router.replace("/login");
+ }
+ 
+ return (
+  <>
+    <header className="topbar">
+      <div className="container nav">
+        <Link className="brand" href="/">سينماك</Link>
+        <nav className="navlinks">
+          <Link href="/">عرض الموقع</Link>
+          <button className="secondary" onClick={logout}>خروج</button>
+        </nav>
+      </div>
+    </header>
+    <main className="container page">
+      <h1>لوحة الإدارة</h1>
+      <p className="muted">إدارة المحتوى المرخّص. لا تضف ملفات لا تملك حق عرضها.</p>
+      {msg&&<div className="notice">{msg}</div>}
+      <section className="panel">
+        <h2>{editId?"تعديل المحتوى":"إضافة فيلم أو حلقة"}</h2>
+        <form className="form" onSubmit={save}>
+          <label>العنوان *<input required value={form.title} onChange={e=>set("title",e.target.value)}/></label>
+          <label>سنة الإصدار<input type="number" min="1888" max="2100" value={form.release_year} onChange={e=>set("release_year",e.target.value)}/></label>
+          <label>التصنيف<input value={form.genre} onChange={e=>set("genre",e.target.value)}/></label>
+          <label>رابط البوستر<input type="url" value={form.poster_url} onChange={e=>set("poster_url",e.target.value)}/></label>
+          <label>القصة<textarea rows={4} value={form.synopsis} onChange={e=>set("synopsis",e.target.value)}/></label>
+          <label>رابط ملف الفيديو المرخّص<input type="url" value={form.video_url} onChange={e=>set("video_url",e.target.value)} placeholder="رابط MP4 مباشر أو CDN يدعم التشغيل"/></label>
+          <label>رابط الإعلان الترويجي<input type="url" value={form.trailer_url} onChange={e=>set("trailer_url",e.target.value)}/></label>
+          <label>طاقم العمل<input value={form.cast_members} onChange={e=>set("cast_members",e.target.value)}/></label>
+          <label>مدة المحتوى بالدقائق<input type="number" min="1" value={form.duration_minutes} onChange={e=>set("duration_minutes",e.target.value)}/></label>
+          <label>التقييم من 10<input type="number" min="0" max="10" step="0.1" value={form.rating} onChange={e=>set("rating",e.target.value)}/></label>
+          <label>محتوى مميز<select value={form.featured?"yes":"no"} onChange={e=>set("featured",e.target.value==="yes")}><option value="no">لا</option><option value="yes">نعم</option></select></label>
+          <label>حالة النشر<select value={form.published?"yes":"no"} onChange={e=>set("published",e.target.value==="yes")}><option value="no">مسودة</option><option value="yes">منشور</option></select></label>
+          <div className="actions">
+            <button disabled={busy}>{busy?"جارٍ الحفظ...":editId?"حفظ التعديل":"إضافة المحتوى"}</button>
+            {editId&&<button type="button" className="secondary" onClick={()=>{setEditId(null);setForm(blank)}}>إلغاء</button>}
+          </div>
+        </form>
+      </section>
+      <section>
+        <div className="section-title"><h2>المحتوى ({movies.length})</h2></div>
+        {movies.length ? (
+          <div className="panel table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>العنوان</th>
+                  <th>السنة</th>
+                  <th>النشر</th>
+                  <th>إجراءات</th>
+                </tr>
+              </thead>
+              <tbody>
+                {movies.map(m=>
+                  <tr key={m.id}>
+                    <td>{m.title}</td>
+                    <td>{m.release_year||"—"}</td>
+                    <td>{m.published?"منشور":"مسودة"}</td>
+                    <td>
+                      <div className="actions">
+                        <button className="secondary" onClick={()=>edit(m.id)}>تعديل</button>
+                        <button className="danger" onClick={()=>remove(m.id)}>حذف</button>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="empty">لا يوجد محتوى.</div>
+        )}
+      </section>
+    </main>
+  </>
+ );
 }
